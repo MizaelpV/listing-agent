@@ -1,0 +1,7 @@
+from fastapi import APIRouter
+
+router = APIRouter()
+
+@router.get("/")
+async def get_cost():
+    return {"status": "ok"}
