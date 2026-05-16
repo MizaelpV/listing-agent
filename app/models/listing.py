@@ -25,3 +25,5 @@ class Listing(Base):
     listing_type_id = Column(String)
     available_quantity = Column(Integer)
     pictures = Column(JSON, nullable=True)
+    meli_item_id = Column(String, nullable=True)
+    meli_url = Column(String, nullable=True)

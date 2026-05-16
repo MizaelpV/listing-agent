@@ -2,12 +2,15 @@ from enum import Enum
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from typing import Optional
-from app.models.listing import Listing
+from app.models.listing import Listing, ListingStatus
 from app.db.deps import get_db
 from app.agents.copywriter import generate_listing as run_crew
+from app.db.redis import get_token
 import json
 import re
+import httpx
 
 router = APIRouter()
 
@@ -73,4 +76,59 @@ async def generate_listing(
     "category_name": parsed.get("category_name")}
 
 
+@router.post("/publish/{draft_id}")
+async def publish_listing(draft_id: str, db: AsyncSession = Depends(get_db)):
+    draft_result = await db.execute(select(Listing).where(Listing.id == draft_id))
+    draft = draft_result.scalar_one_or_none()
+
+    if not draft:
+        raise HTTPException(status_code=404, detail="No draft found")
+
+    token = await get_token(f"meli_access_token:{draft.user_id}")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="No token existing")
+
+    token = token.decode("utf-8")    
+
+    url = "https://api.mercadolibre.com/items"
+
+    meli_payload = {
+        "title": draft.generated_title,
+        "category_id": draft.category_id,
+        "price": draft.price,
+        "buying_mode": "buy_it_now",
+        "currency_id": "CLP",
+        "condition": draft.condition,
+        "listing_type_id": draft.listing_type_id or "free",
+        "available_quantity": draft.available_quantity,
+         "pictures": draft.pictures or [
+        {"source": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Culinary_fruits_front_view.jpg/1200px-Culinary_fruits_front_view.jpg"}
+    ],
+        "attributes": [
+        {"id": "BRAND", "value_name": "Generic"},
+        {"id": "GTIN", "value_name": "0123456789012"}
+       ]
+    }
+    
+    async with httpx.AsyncClient() as client:
+        headers={"Authorization": f"Bearer {token}"}
+        response =  await client.post(url, json=meli_payload, headers=headers)
+
+        if response.status_code != 200:
+            print("MeLi error:", response.json())  
+
+
+        response.raise_for_status()
+        
+        meli_response = response.json()
+
+        draft.meli_item_id = meli_response["id"]
+        draft.meli_url = meli_response["permalink"]
+        draft.status = ListingStatus.published
+    
+    await db.commit()
+    await db.refresh(draft) 
+    
+    return {"meli_url": draft.meli_url, "meli_item_id": draft.meli_item_id}
 
