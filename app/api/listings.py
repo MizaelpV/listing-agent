@@ -57,14 +57,16 @@ async def generate_listing(
         user_id="d9916e4b-43cc-4b71-909e-8c001590fd3a",
         generated_title=parsed["title"],
         generated_description=parsed["description"],
-        price=price
+        price=price,
+        category_id=parsed.get("category_id") 
     )
 
     db.add(draft)
     await db.commit()
     await db.refresh(draft)
 
-    return {"draft_id": draft.id, "title": draft.generated_title, "description": draft.generated_description}
+    return {"draft_id": draft.id, "title": draft.generated_title, "description": draft.generated_description,  "category_id": parsed.get("category_id"),
+    "category_name": parsed.get("category_name")}
 
 
 

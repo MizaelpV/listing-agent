@@ -1,6 +1,7 @@
 from crewai import Agent, Task, Crew, LLM
 import asyncio
 from dotenv import load_dotenv
+from app.tools.category_tool import CategoryFinderTool
 
 load_dotenv()
 
@@ -27,22 +28,30 @@ agent = Agent(
     role="Expert Copywriter",
     goal=agent_goal,
     backstory=agent_backstory,
-    llm=llm 
+    llm=llm,
+    tools=[CategoryFinderTool()],
+    verbose=True
 )
 
 task = Task(
-    description=(
+      description=(
         "Create a product listing for: {product_description}. "
-        "Generate a title and description tailored to the marketplace constraints and best practices."
+        "You MUST use the MeLi Category Finder tool first to find the correct category. "
+        "Do not generate the listing without calling the tool. "
+        "Steps: 1) Call the tool with the product title. 2) Pick the best category from the results. "
+        "3) Generate title and description based on the category context."
     ),
     expected_output=(
         'A valid JSON object: '
-        '{"title": "<title>", "description": "<description>"}'
+        '{"title": "<title>", "description": "<description>", "category_id": "<category_id>", "category_name": "<category_name>"}'
+
     ),
     agent=agent
 )
 
-crew = Crew(agents=[agent], tasks=[task])
+crew = Crew(agents=[agent], tasks=[task], verbose=True)
+
+
 
 
 async def generate_listing(description: str):

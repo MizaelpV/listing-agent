@@ -20,3 +20,4 @@ class Listing(Base):
     price = Column(Integer, default=0)
     status = Column(SAEnum(ListingStatus), default=ListingStatus.draft)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    category_id = Column(String, nullable=True)
