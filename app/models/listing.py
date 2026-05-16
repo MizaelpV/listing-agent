@@ -1,5 +1,5 @@
 from enum import Enum
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, JSON
 from sqlalchemy import Enum as SAEnum    
 from app.db.database import Base
 import uuid
@@ -21,3 +21,7 @@ class Listing(Base):
     status = Column(SAEnum(ListingStatus), default=ListingStatus.draft)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     category_id = Column(String, nullable=True)
+    condition = Column(String)
+    listing_type_id = Column(String)
+    available_quantity = Column(Integer)
+    pictures = Column(JSON, nullable=True)

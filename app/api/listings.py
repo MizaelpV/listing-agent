@@ -1,5 +1,5 @@
 from enum import Enum
-from fastapi import APIRouter, UploadFile, File, Form, Depends
+from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -7,6 +7,7 @@ from app.models.listing import Listing
 from app.db.deps import get_db
 from app.agents.copywriter import generate_listing as run_crew
 import json
+import re
 
 router = APIRouter()
 
@@ -29,7 +30,6 @@ async def get_listings():
     return {"status": "ok"}
 
 
-# @router.post("/generate", response_model=ListingResponse)
 @router.post("/generate")
 async def generate_listing(
     title: Optional[str] = Form(None),
@@ -38,27 +38,31 @@ async def generate_listing(
     pictures: Optional[list[UploadFile]] = File(None),
     publication_type: Optional[PublicationType] = Form(None),
     shipping: Optional[str] = Form(None),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    condition: Optional[str] = Form(None),
+    listing_type_id: Optional[str] = Form(None),
+    available_quantity: Optional[int] = Form(None)
 ):
-    # return ListingResponse(
-    #     title=title,
-    #     description=description,
-    #     price=price,
-    #     pictures=[p.filename for p in pictures],
-    #     publication_type=publication_type,
-    #     shipping=shipping,
-    # )
+
     result = await run_crew(description)
-    parsed = json.loads(str(result))
+    result_str = str(result)
 
+    json_match = re.search(r'\{.*\}', result_str, re.DOTALL)
+    if not json_match:
+        raise HTTPException(status_code=500, detail="Agent failed to generate a valid listing")
 
+    parsed = json.loads(json_match.group())
 
     draft = Listing(
         user_id="d9916e4b-43cc-4b71-909e-8c001590fd3a",
         generated_title=parsed["title"],
         generated_description=parsed["description"],
         price=price,
-        category_id=parsed.get("category_id") 
+        category_id=parsed.get("category_id"),
+        condition=condition,
+        listing_type_id=listing_type_id,
+        available_quantity=available_quantity,
+        pictures=[] 
     )
 
     db.add(draft)
