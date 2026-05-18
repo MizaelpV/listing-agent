@@ -8,6 +8,7 @@ from app.models.listing import Listing, ListingStatus
 from app.db.deps import get_db
 from app.agents.copywriter import generate_listing as run_crew
 from app.db.redis import get_token
+from app.db.deps import get_current_user
 import json
 import re
 import httpx
@@ -42,6 +43,7 @@ async def generate_listing(
     publication_type: Optional[PublicationType] = Form(None),
     shipping: Optional[str] = Form(None),
     db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user),
     condition: Optional[str] = Form(None),
     listing_type_id: Optional[str] = Form(None),
     available_quantity: Optional[int] = Form(None)
@@ -57,7 +59,7 @@ async def generate_listing(
     parsed = json.loads(json_match.group())
 
     draft = Listing(
-        user_id="d9916e4b-43cc-4b71-909e-8c001590fd3a",
+        user_id=current_user,
         generated_title=parsed["title"],
         generated_description=parsed["description"],
         price=price,
@@ -77,12 +79,15 @@ async def generate_listing(
 
 
 @router.post("/publish/{draft_id}")
-async def publish_listing(draft_id: str, db: AsyncSession = Depends(get_db)):
+async def publish_listing(draft_id: str, db: AsyncSession = Depends(get_db), current_user = Depends(get_current_user)):
     draft_result = await db.execute(select(Listing).where(Listing.id == draft_id))
     draft = draft_result.scalar_one_or_none()
 
     if not draft:
         raise HTTPException(status_code=404, detail="No draft found")
+
+    if draft.user_id != current_user:
+        raise HTTPException(status_code=403, detail="Not authorized to publish this draft")    
 
     token = await get_token(f"meli_access_token:{draft.user_id}")
 

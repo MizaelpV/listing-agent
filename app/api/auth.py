@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.redis import set_token
 from app.models.user import User, UserToken
+from app.core.security import create_access_token
 from urllib import parse
 import httpx 
 import os
@@ -92,7 +93,9 @@ async def get_callback(code: str, db: AsyncSession = Depends(get_db)):
 
     await set_token(f"meli_access_token:{user.id}", access_token, ttl=6*60*60)
 
-    return {"status": "ok", "user_id": str(user.id)}
+    jwt_token = create_access_token(str(user.id))
+
+    return {"status": "ok", "user_id": str(user.id), "access_token": jwt_token, "token_type": "bearer"}
  
    
 
