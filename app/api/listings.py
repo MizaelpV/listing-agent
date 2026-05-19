@@ -9,6 +9,7 @@ from app.db.deps import get_db
 from app.agents.copywriter import generate_listing as run_crew
 from app.db.redis import get_token
 from app.db.deps import get_current_user
+from app.core.meli_auth import get_valid_meli_token
 import json
 import re
 import httpx
@@ -89,12 +90,8 @@ async def publish_listing(draft_id: str, db: AsyncSession = Depends(get_db), cur
     if draft.user_id != current_user:
         raise HTTPException(status_code=403, detail="Not authorized to publish this draft")    
 
-    token = await get_token(f"meli_access_token:{draft.user_id}")
+    token = await get_valid_meli_token(draft.user_id, db)
 
-    if not token:
-        raise HTTPException(status_code=401, detail="No token existing")
-
-    token = token.decode("utf-8")    
 
     url = "https://api.mercadolibre.com/items"
 
